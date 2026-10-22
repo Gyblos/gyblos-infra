@@ -4,3 +4,4 @@
 *.key
 *.crt
 certs/
+node_modules/

@@ -236,3 +236,18 @@ The "≈1 in 10 connections relayed" figure and the cost are hypotheses.
   history for a one-line rollback.
 - Re-read `iroh-relay/src/main.rs` (config struct) and the release notes for
   config key changes before each upgrade.
+
+## End-to-end check with real Iroh endpoints
+
+`relay/check/` contains a small Node script that checks a deployed relay:
+
+```bash
+cd relay/check && npm ci --ignore-scripts
+node control.mjs                      # sanity: the setup goes online with n0's public relays
+node check.mjs                        # no token / wrong token must be refused
+read -s GYBLOS_RELAY_TOKEN && export GYBLOS_RELAY_TOKEN
+node check.mjs                        # with the token: echo through the relay
+unset GYBLOS_RELAY_TOKEN
+```
+
+The token is read from the environment and never printed.
