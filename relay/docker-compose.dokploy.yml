@@ -76,8 +76,10 @@ services:
       - traefik.tcp.routers.gyblos-relay.tls.passthrough=true
       - traefik.tcp.services.gyblos-relay.loadbalancer.server.port=443
     volumes:
-      - ./config.toml:/config/config.toml:ro
-      - ./entrypoint.sh:/config/entrypoint.sh:ro
+      # Dokploy resolves relative paths from the repository root (its code/
+      # directory), not from this file's folder, so paths include relay/.
+      - ./relay/config.toml:/config/config.toml:ro
+      - ./relay/entrypoint.sh:/config/entrypoint.sh:ro
       - relay-certs:/var/lib/iroh-relay/certs
     ulimits:
       nofile:
