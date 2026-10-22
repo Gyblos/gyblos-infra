@@ -26,10 +26,10 @@ Traefik owns ports 80 and 443. Use `docker-compose.yml` on a dedicated VPS.
    is already open for Traefik.
 3. **Dokploy:** create a new **Compose** service:
    - Compose file: contents of `docker-compose.dokploy.yml`.
-   - Source: deploy from the private Git repo `Gyblos/gyblos-infra`, compose
-     path `relay/docker-compose.dokploy.yml`. Dokploy resolves relative paths
-     from the repository root, so the compose file mounts `./relay/config.toml`
-     and `./relay/entrypoint.sh`. Do not add file mounts by hand.
+   - Source: deploy from the private Git repo `Gyblos/gyblos-infra`, Compose
+     Path `./relay/docker-compose.dokploy.yml` (the default `./docker-compose.yml`
+     fails with "Compose file not found"). Mount paths are relative to that
+     file's folder. Do not add file mounts by hand.
    - Environment: values from `.env.example` (`RELAY_HOSTNAME`,
      `ACME_CONTACT`, `RELAY_ACCESS_MODE`, `RELAY_ACCESS_TOKENS`, `RUST_LOG`).
      Generate the token as shown there. Never commit it.

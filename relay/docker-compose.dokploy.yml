@@ -76,10 +76,10 @@ services:
       - traefik.tcp.routers.gyblos-relay.tls.passthrough=true
       - traefik.tcp.services.gyblos-relay.loadbalancer.server.port=443
     volumes:
-      # Dokploy resolves relative paths from the repository root (its code/
-      # directory), not from this file's folder, so paths include relay/.
-      - ./relay/config.toml:/config/config.toml:ro
-      - ./relay/entrypoint.sh:/config/entrypoint.sh:ro
+      # Relative to this file's folder (docker compose resolves paths from the
+      # compose file). In Dokploy set Compose Path = ./relay/docker-compose.dokploy.yml.
+      - ./config.toml:/config/config.toml:ro
+      - ./entrypoint.sh:/config/entrypoint.sh:ro
       - relay-certs:/var/lib/iroh-relay/certs
     ulimits:
       nofile:
