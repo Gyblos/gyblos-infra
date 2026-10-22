@@ -1,0 +1,98 @@
+# Gyblos iroh-relay (one instance per VPS; two VPS on two providers).
+#
+# Image: n0computer/iroh-relay, pinned by tag AND digest (multi-arch index).
+#   Tag v1.4.1 = iroh release v1.4.1 (2026-10-21/22), latest 1.x patch.
+#   Release: https://github.com/n0-computer/iroh/releases/tag/v1.4.1
+#   Hub:     https://hub.docker.com/r/n0computer/iroh-relay/tags
+# Why 1.4.1: same 1.x relay wire protocol as the iroh 1.x crates bundled in
+# @number0/iroh 1.1.0 (Cargo deps iroh/iroh-relay "1.0.0" semver range), and it
+# carries the rustls RUSTSEC fixes from 1.4.0 (RUSTSEC-2026-0346..0349, which
+# n0 says relay operators must pick up) plus the rustls-webpki fix in 1.4.1.
+# See README "Upgrade policy" before bumping.
+#
+# Usage: cp .env.example .env && edit && docker compose up -d
+name: gyblos-relay
+
+x-relay-image: &relay-image n0computer/iroh-relay:v1.4.1@sha256:f73d0028e9dcb08372d65ae48ec84e4c875812d754877c074a10658e3948d5d3
+
+services:
+  # One-shot: make the named cert volume writable by the unprivileged relay
+  # user (named volumes are created root-owned). Exits immediately.
+  relay-init:
+    image: *relay-image
+    entrypoint: ["/bin/sh", "-c", "chown -R 65534:65534 /var/lib/iroh-relay/certs && chmod 0700 /var/lib/iroh-relay/certs"]
+    user: "0:0"
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    volumes:
+      - relay-certs:/var/lib/iroh-relay/certs
+    restart: "no"
+
+  relay:
+    image: *relay-image
+    depends_on:
+      relay-init:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "/config/entrypoint.sh"]
+    command: []
+    # Image has no USER (runs as root by default); run as nobody instead.
+    user: "65534:65534"
+    # Lets the non-root process bind 80/443 inside its own network namespace
+    # (Docker's default since 20.10; set explicitly so it never regresses).
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp:size=1m,mode=1777
+    environment:
+      RELAY_HOSTNAME: ${RELAY_HOSTNAME:?set RELAY_HOSTNAME in .env}
+      ACME_CONTACT: ${ACME_CONTACT:?set ACME_CONTACT in .env}
+      RELAY_ACCESS_MODE: ${RELAY_ACCESS_MODE:-shared_token}
+      RELAY_ACCESS_TOKENS: ${RELAY_ACCESS_TOKENS:-}
+      # warn keeps logs to errors/abnormal events; info/debug log more
+      # per-connection detail (endpoint ids, possibly addresses).
+      RUST_LOG: ${RUST_LOG:-warn}
+    ports:
+      - "80:80/tcp"        # HTTP: captive-portal probe only (TLS enabled)
+      - "443:443/tcp"      # HTTPS/WebSocket relay + ACME TLS-ALPN-01 + /healthz /ping
+      - "7842:7842/udp"    # QUIC address discovery (DEFAULT_RELAY_QUIC_PORT)
+      - "127.0.0.1:9090:9090/tcp"  # Prometheus metrics, host-local only
+    volumes:
+      - ./config.toml:/config/config.toml:ro
+      - ./entrypoint.sh:/config/entrypoint.sh:ro
+      - relay-certs:/var/lib/iroh-relay/certs
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+          pids: 256
+        reservations:
+          memory: 64M
+    healthcheck:
+      # busybox wget is in the alpine base; metrics responding == process up.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+    stop_grace_period: 10s
+
+volumes:
+  relay-certs:
+    name: gyblos-relay-certs

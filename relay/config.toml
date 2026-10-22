@@ -1,0 +1,78 @@
+# iroh-relay configuration template for Gyblos relays.
+#
+# Reference: iroh-relay/src/main.rs at tag v1.4.1 (the struct `Config` is the
+# authoritative list of keys; the public docs are partial).
+#   https://github.com/n0-computer/iroh/blob/v1.4.1/iroh-relay/src/main.rs
+#
+# This file is a TEMPLATE. `entrypoint.sh` replaces the double-underscore placeholders from
+# environment variables at container start and refuses to start if any is
+# missing. Do not put real tokens in this file; it is committed to git.
+#
+# WARNING: if iroh-relay is started with a --config-path that does not exist it
+# silently falls back to built-in defaults (plain HTTP, no TLS, no limits).
+# entrypoint.sh checks the rendered file exists before exec'ing the relay.
+
+# Keep relaying enabled (false = QUIC address discovery only, no data relayed).
+enable_relay = true
+
+# Plain HTTP listener. With TLS configured it only serves the captive-portal
+# check (/generate_204); real relay traffic goes over HTTPS below.
+http_bind_addr = "[::]:80"
+
+# QUIC address discovery (QAD): clients open a QUIC connection to UDP 7842 and
+# the relay reports back the public ip:port it observed. This replaces STUN and
+# is what lets two NATed endpoints learn their public addresses for
+# hole-punching. Requires [tls].
+enable_quic_addr_discovery = true
+
+# Prometheus metrics. Bound on all interfaces INSIDE the container so Docker
+# can forward it, but docker-compose.yml publishes it on 127.0.0.1 only. Never
+# publish 9090 publicly: it exposes traffic counters and client counts.
+enable_metrics = true
+metrics_bind_addr = "[::]:9090"
+
+# Access control for relaying (does not gate QAD or /healthz).
+# Rendered from RELAY_ACCESS_MODE:
+#   open          -> access = "everyone"
+#   shared_token  -> access = { shared_token = ["<t1>", "<t2>"] }   (recommended for v1)
+# Tokens are matched against `Authorization: Bearer <token>` sent by the
+# client (RelayConfig.authToken in @number0/iroh). Two tokens allow
+# rotation without breaking clients still on the old one. See SECURITY.md.
+access = __ACCESS__
+
+[tls]
+https_bind_addr = "[::]:443"
+quic_bind_addr = "[::]:7842"
+# Must resolve (A and AAAA if IPv6 is enabled) to THIS relay's public IP before
+# first start, otherwise the ACME TLS-ALPN-01 challenge on :443 fails.
+hostname = "__RELAY_HOSTNAME__"
+# Automatic certificates from Let's Encrypt via TLS-ALPN-01 (port 443 must be
+# reachable directly from the internet; no TLS-terminating proxy in front).
+cert_mode = "LetsEncrypt"
+# Let's Encrypt production. Staging certs are not trusted by clients, so only
+# flip this to false while debugging issuance (rate limits: 5 dup certs/week).
+prod_tls = true
+contact = "__ACME_CONTACT__"
+# Persistent volume: ACME account key + issued cert + private key cache.
+# Losing it only forces re-issuance (watch LE rate limits); see README backups.
+cert_dir = "/var/lib/iroh-relay/certs"
+
+# Per-client token bucket on the relay's RECEIVE side (bytes the client sends
+# into the relay). One client exhausting its bucket does not affect others;
+# the relay stops reading that socket (backpressure, no drops).
+# Rate limiting is OFF unless this section is present.
+# Docs: https://docs.iroh.computer/relays/rate-limiting
+[limits.client.rx]
+# Steady state: 500 kB/s (~4 Mbit/s) per client connection. Relayed Gyblos
+# traffic is coordination + fallback inference streams (prompt in, tokens out);
+# token streaming is well under 50 kB/s, so this leaves ~10x headroom while
+# capping what one abuser can pull through the relay at ~1.3 TB/month worst
+# case per connection. Raise only after measuring (README, cost plan).
+bytes_per_second = 500000
+# Burst: up to 2 MB above the steady rate, so a large prompt/context upload
+# (or QUIC handshake + initial flight after reconnect) is not throttled.
+max_burst_bytes = 2000000
+
+# NOTE: [limits] accept_conn_limit / accept_conn_burst exist in the config
+# struct but are documented as reserved / not enforced in 1.x, so they are not
+# set here. Connection-rate limiting is done at the host firewall (README).
