@@ -4,7 +4,7 @@
 # relay never runs with iroh-relay's silent built-in defaults.
 #
 # Env:
-#   RELAY_HOSTNAME       e.g. sa1.relay.example.com (required)
+#   RELAY_HOSTNAME       e.g. na1.relay.gyblos.com (required)
 #   ACME_CONTACT         e.g. ops@example.com        (required)
 #   RELAY_ACCESS_MODE    shared_token (default) | open
 #   RELAY_ACCESS_TOKENS  comma-separated tokens, [A-Za-z0-9_-] only,

@@ -51,7 +51,7 @@ Details that matter:
 
 | Variable | Default (prod) | Meaning |
 | --- | --- | --- |
-| `GYBLOS_RELAYS` | `https://sa1.relay.<domain>/,https://na1.relay.<domain>/` (compiled-in constant in `@gyblos/config`) | Our relay URLs |
+| `GYBLOS_RELAYS` | `https://na2.relay.gyblos.com/,https://na1.relay.gyblos.com/` (compiled-in constant in `@gyblos/config`) | Our relay URLs |
 | `GYBLOS_RELAY_TOKEN` | compiled-in current token | Bearer token for our relays |
 | `GYBLOS_RELAY_FALLBACK` | `none` | `none` \| `n0` (append n0 relays if ours fail; dev/emergency) |
 | `GYBLOS_RELAY_MODE` | `gyblos` | `gyblos` \| `n0` (current behavior, dev) \| `disabled` (LAN tests) |
@@ -111,7 +111,7 @@ async function ensureOnline(endpoint: Endpoint, ms: number) {
 }
 ```
 
-The two-relay, two-provider setup is itself the primary fallback: if `sa1` is
+The two-relay, two-provider setup is itself the primary fallback: if `na2` is
 down, iroh's net report marks it unreachable and picks `na1` as home relay
 automatically (no code). n0 fallback is opt-in because n0's public relays are
 development-only and rate-limited.
@@ -141,7 +141,7 @@ development-only and rate-limited.
 ```ts
 const ep = await bindEndpoint(secret);
 await ep.online();
-console.log(ep.addr().relayUrl());   // https://sa1.relay.<domain>/ or na1
+console.log(ep.addr().relayUrl());   // https://na2.relay.gyblos.com/ or na1
 ep.watchHomeRelay((urls) => console.log('home relay', urls));
 ```
 

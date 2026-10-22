@@ -1,7 +1,7 @@
 # Gyblos iroh relays
 
 Two self-hosted `iroh-relay` instances, one per VPS, on two different providers
-and regions (proposed: `sa1` South America, `na1` North America). They replace
+and regions (proposed: `na1` and `na2`, both in North America on two different providers (`na1` = Hostinger, existing Dokploy server)). They replace
 n0's public relays, which are for development only.
 
 Files:
@@ -51,10 +51,10 @@ One name per relay, pointing directly at the VPS (no CDN/proxy, e.g. Cloudflare
 "DNS only", grey cloud):
 
 ```
-sa1.relay.<domain>.  A     <sa1 IPv4>
-sa1.relay.<domain>.  AAAA  <sa1 IPv6>     # only if IPv6 is enabled end to end
-na1.relay.<domain>.  A     <na1 IPv4>
-na1.relay.<domain>.  AAAA  <na1 IPv6>
+na2.relay.gyblos.com.  A     <na2 IPv4>
+na2.relay.gyblos.com.  AAAA  <na2 IPv6>     # only if IPv6 is enabled end to end
+na1.relay.gyblos.com.  A     <na1 IPv4>
+na1.relay.gyblos.com.  AAAA  <na1 IPv6>
 <domain>.            CAA   0 issue "letsencrypt.org"   # optional, recommended
 ```
 
@@ -63,8 +63,8 @@ ACME challenge fails (and repeated failures hit Let's Encrypt rate limits).
 Do not publish an AAAA record unless Docker IPv6 is configured (see below);
 clients that pick a dead AAAA see slow or failed relay connections.
 
-Relay URL used by clients: `https://sa1.relay.<domain>/` and
-`https://na1.relay.<domain>/`.
+Relay URL used by clients: `https://na2.relay.gyblos.com/` and
+`https://na1.relay.gyblos.com/`.
 
 ## Firewall
 
@@ -95,7 +95,7 @@ bandwidth, so pick a provider with a large included transfer quota.
 1. Create the VPS (Ubuntu 24.04 LTS or Debian 12), add SSH key, disable
    password login, enable unattended security upgrades.
 2. Set the provider firewall as above. Create the DNS records and wait until
-   `dig +short sa1.relay.<domain>` returns the VPS IP.
+   `dig +short na2.relay.gyblos.com` returns the VPS IP.
 3. Install Docker Engine + compose plugin from Docker's official repository.
 4. Copy this `relay/` directory to `/opt/gyblos-relay` (git clone of the infra
    repo, or `scp`).
@@ -127,7 +127,7 @@ on every server it manages, so pick one:
   Do not add a Dokploy "Domain" to this service (that creates Traefik routes).
 - **B. Shared server with Traefik in TCP passthrough.** Remove the `80:80` and
   `443:443` publications, attach the relay to `dokploy-network`, and add a
-  Traefik TCP router `HostSNI(\`sa1.relay.<domain>\`)` with `tls.passthrough=true`
+  Traefik TCP router `HostSNI(\`na2.relay.gyblos.com\`)` with `tls.passthrough=true`
   to the relay's 443 (TLS-ALPN-01 works through SNI passthrough). Port 80 then
   belongs to Traefik; the captive-portal probe degrades but relaying works.
   More moving parts; only if a dedicated VPS is not possible.
@@ -140,7 +140,7 @@ options. Dokploy's "Deploy" pulls the pinned digest; there is no build step.
 From your laptop:
 
 ```sh
-H=sa1.relay.<domain>
+H=na2.relay.gyblos.com
 curl --noproxy '*' -fsS https://$H/healthz            # 200
 curl -fsS -o /dev/null -w '%{http_code}\n' https://$H/ping       # 200
 curl -fsS -o /dev/null -w '%{http_code}\n' http://$H/generate_204  # 204
@@ -232,7 +232,7 @@ The "≈1 in 10 connections relayed" figure and the cost are hypotheses.
   watch). Security releases touching `iroh-relay`/rustls: upgrade within 7
   days. Others: upgrade monthly, after the release is ≥ 1 week old.
 - Rollout: upgrade `na1` first, run the Verify section and an end-to-end
-  connection, wait 24 h, then `sa1`. Keep the previous `tag@digest` in the git
+  connection, wait 24 h, then `na2`. Keep the previous `tag@digest` in the git
   history for a one-line rollback.
 - Re-read `iroh-relay/src/main.rs` (config struct) and the release notes for
   config key changes before each upgrade.
