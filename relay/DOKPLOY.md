@@ -18,7 +18,7 @@ Traefik owns ports 80 and 443. Use `docker-compose.yml` on a dedicated VPS.
 ## Steps
 
 1. **DNS (Cloudflare):** add an `A` record (and `AAAA` if the server has IPv6)
-   for the relay hostname, e.g. `sa1.relay.gyblos.com`, pointing at the
+   for the relay hostname, e.g. `na1.relay.gyblos.com`, pointing at the
    server. Set it to **DNS only (grey cloud)**. The orange proxy breaks UDP and
    the relay's own TLS.
 2. **Firewall:** allow inbound **UDP 7842** in the Hostinger firewall (hPanel)
@@ -34,9 +34,9 @@ Traefik owns ports 80 and 443. Use `docker-compose.yml` on a dedicated VPS.
      Generate the token as shown there. Never commit it.
 4. **Deploy**, then wait about a minute for the certificate.
 5. **Verify:**
-   - `curl -sS https://sa1.relay.gyblos.com/ping` should answer.
-   - `curl -sS https://sa1.relay.gyblos.com/healthz`.
-   - `nc -u -z -v sa1.relay.gyblos.com 7842` from another machine (UDP checks
+   - `curl -sS https://na1.relay.gyblos.com/ping` should answer.
+   - `curl -sS https://na1.relay.gyblos.com/healthz`.
+   - `nc -u -z -v na1.relay.gyblos.com 7842` from another machine (UDP checks
      are best-effort).
    - On the server: `curl -s 127.0.0.1:9090/metrics | head`.
 6. **Measure cost:** watch relay bytes in the metrics and the server's monthly
