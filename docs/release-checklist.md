@@ -54,7 +54,9 @@ curl -fsS http://127.0.0.1:9090/metrics | head
 ```
 
 The UDP check is best effort. Treat the HTTPS, health and local metrics checks
-as required deployment evidence.
+as required deployment evidence. A `204` response from `generate_204` confirms
+the dedicated-VPS HTTP probe; a `404` is expected for the current Dokploy
+variant because Traefik owns port 80. Any other response should be investigated.
 
 ## Manual end-to-end check
 
