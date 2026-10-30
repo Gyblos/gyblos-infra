@@ -1,0 +1,96 @@
+name: Relay monitor
+
+on:
+  schedule:
+    # Daily at 06:17 UTC. Keep this separate from repository CI so a relay
+    # outage is visible even when no code has changed.
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: relay-monitor-na1
+  cancel-in-progress: true
+
+env:
+  RELAY_HOSTNAME: na1.relay.gyblos.com
+  RELAY_URL: https://na1.relay.gyblos.com
+
+jobs:
+  public-health:
+    name: Public relay health
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check HTTPS and health endpoints
+        run: |
+          set -eu
+
+          curl --noproxy '*' --connect-timeout 10 --max-time 20 \
+            -fsS -o /dev/null "${RELAY_URL}/healthz"
+
+          ping_status=$(curl --noproxy '*' --connect-timeout 10 --max-time 20 \
+            -sS -o /dev/null -w '%{http_code}' "${RELAY_URL}/ping")
+          test "$ping_status" = 200
+
+          probe_status=$(curl --noproxy '*' --connect-timeout 10 --max-time 20 \
+            -sS -o /dev/null -w '%{http_code}' \
+            "http://${RELAY_HOSTNAME}/generate_204")
+          test "$probe_status" = 204
+
+      - name: Check certificate validity
+        run: |
+          set -eu
+          openssl s_client \
+            -connect "${RELAY_HOSTNAME}:443" \
+            -servername "$RELAY_HOSTNAME" \
+            </dev/null 2>/dev/null \
+            | openssl x509 -noout -checkend 604800 -issuer -dates
+
+  authenticated-e2e:
+    name: Authenticated relay E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Detect deployment token
+        id: token
+        env:
+          GYBLOS_RELAY_TOKEN: ${{ secrets.GYBLOS_RELAY_TOKEN }}
+        run: |
+          if [ -n "${GYBLOS_RELAY_TOKEN:-}" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report missing deployment token
+        if: steps.token.outputs.configured != 'true'
+        run: echo '::notice::GYBLOS_RELAY_TOKEN is not configured; authenticated E2E was skipped.'
+
+      - name: Check out repository
+        if: steps.token.outputs.configured == 'true'
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        if: steps.token.outputs.configured == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: relay/check/package-lock.json
+
+      - name: Install relay check dependencies
+        if: steps.token.outputs.configured == 'true'
+        working-directory: relay/check
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Run authenticated relay E2E
+        if: steps.token.outputs.configured == 'true'
+        working-directory: relay/check
+        env:
+          GYBLOS_RELAY_TOKEN: ${{ secrets.GYBLOS_RELAY_TOKEN }}
+        run: RELAY_URL="$RELAY_URL" node check.mjs
