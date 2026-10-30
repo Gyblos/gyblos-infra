@@ -26,7 +26,7 @@ Traefik owns ports 80 and 443. Use `docker-compose.yml` on a dedicated VPS.
    is already open for Traefik.
 3. **Dokploy:** create a new **Compose** service:
    - Compose file: contents of `docker-compose.dokploy.yml`.
-   - Source: deploy from the private Git repo `Gyblos/gyblos-infra`, Compose
+   - Source: deploy from the public Git repo `Gyblos/gyblos-infra`, Compose
      Path `./relay/docker-compose.dokploy.yml` (the default `./docker-compose.yml`
      fails with "Compose file not found"). Mount paths are relative to that
      file's folder. Do not add file mounts by hand.
@@ -45,8 +45,9 @@ Traefik owns ports 80 and 443. Use `docker-compose.yml` on a dedicated VPS.
 
 ## Notes
 
-- This is one relay in one location: fine for devnet, not redundancy. Before
-  public launch, add a second relay with another provider and region.
+- `na1` is the currently documented active relay. `na2` is planned as a second
+  relay with another provider and region; until it is deployed, this setup is
+  not redundant.
 - Nodes must be configured to use this relay, and the buyer's relay check must
   accept it. Today `apps/cli/src/p2p/buyer.ts` only accepts n0's default relays
   (see `node-config.md`).

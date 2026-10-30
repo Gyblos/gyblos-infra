@@ -1,4 +1,8 @@
-# Relay security notes
+# Relay threat model and security notes
+
+For private vulnerability reports, use the repository's
+[security policy](../SECURITY.md). This document describes the relay's
+operational threats and mitigations; it is not the disclosure channel.
 
 Scope: the two Gyblos `iroh-relay` hosts. Anonymous access to the relays is an
 abuse mitigation, not a confidentiality guarantee.

@@ -1,5 +1,9 @@
 # Configuring Gyblos nodes and buyers to use our relays
 
+> **Integration status — proposal.** This document describes a proposed
+> integration. This repository does not currently modify or guarantee the
+> implementation in `gyblos-payments` or its client applications.
+
 Source of truth checked: `@number0/iroh` **1.1.0** `index.d.ts` and
 `src/relay.rs` (napi binding over Rust `iroh`/`iroh-relay` 1.x), and
 `gyblos-payments/packages/transport/src/endpoint.ts`,
@@ -7,7 +11,7 @@ Source of truth checked: `@number0/iroh` **1.1.0** `index.d.ts` and
 No change was made to `gyblos-payments`; the snippets below are proposals for
 whoever owns the transport package.
 
-## Short answer: yes, the TS binding supports custom relays
+## Observed compatibility: custom relays are supported
 
 `@number0/iroh` 1.1.0 exposes everything needed, including per-relay QUIC port
 and auth token:
@@ -47,7 +51,7 @@ Details that matter:
   there is no priority/weight field. "Prefer ours" therefore means "only ours
   in the map"; fallback means "add more entries later", not "lower priority".
 
-## Proposed configuration surface (env)
+## Proposed client configuration surface (env)
 
 | Variable | Default (prod) | Meaning |
 | --- | --- | --- |
@@ -56,7 +60,7 @@ Details that matter:
 | `GYBLOS_RELAY_FALLBACK` | `none` | `none` \| `n0` (append n0 relays if ours fail; dev/emergency) |
 | `GYBLOS_RELAY_MODE` | `gyblos` | `gyblos` \| `n0` (current behavior, dev) \| `disabled` (LAN tests) |
 
-## Proposed `bindEndpoint` change (packages/transport/src/endpoint.ts)
+### Proposed `bindEndpoint` change (packages/transport/src/endpoint.ts)
 
 ```ts
 import { Endpoint, RelayMap, RelayMode, type RelayConfig } from '@number0/iroh';
@@ -116,7 +120,7 @@ down, iroh's net report marks it unreachable and picks `na1` as home relay
 automatically (no code). n0 fallback is opt-in because n0's public relays are
 development-only and rate-limited.
 
-## Required changes elsewhere (same PR as the above)
+### Required consumer changes before production activation
 
 1. **`apps/cli/src/p2p/buyer.ts` rejects any offer whose `relayUrl` is not in
    `RelayMode.defaultMode().relayMap()`** (n0's map). It must check against

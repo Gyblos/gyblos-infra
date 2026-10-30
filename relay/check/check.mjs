@@ -2,11 +2,15 @@
 // - Without a token (and with a wrong one) the relay must refuse: no home relay.
 // - With the token (env GYBLOS_RELAY_TOKEN, never printed) two relay-only
 //   endpoints must meet through the relay and exchange an echo.
-// Usage: node check.mjs            (refusal checks only)
-//        GYBLOS_RELAY_TOKEN=... node check.mjs
+// Usage: RELAY_URL=https://relay.example node check.mjs
+//        RELAY_URL=https://relay.example GYBLOS_RELAY_TOKEN=... node check.mjs
 import { Endpoint, EndpointAddr, RelayMap, RelayMode, SecretKey } from '@number0/iroh'
 
-const RELAY_URL = process.env.RELAY_URL ?? 'https://na1.relay.gyblos.com'
+const RELAY_URL = process.env.RELAY_URL?.trim()
+if (!RELAY_URL) {
+  console.error('Usage: RELAY_URL=https://relay.example node check.mjs')
+  process.exit(64)
+}
 const QUIC_PORT = 7842
 const ALPN = [...Buffer.from('gyblos/relay-check/0')]
 const ONLINE_MS = 15000
