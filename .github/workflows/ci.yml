@@ -35,29 +35,5 @@ jobs:
         working-directory: relay/check
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Check shell syntax
-        run: sh -n relay/entrypoint.sh
-
-      - name: Check Node.js syntax
-        run: |
-          node --check relay/check/check.mjs
-          node --check relay/check/control.mjs
-
-      - name: Run entrypoint regression tests
-        run: sh relay/test/entrypoint.sh
-
-      - name: Validate Compose files
-        env:
-          RELAY_HOSTNAME: ci.example.test
-          ACME_CONTACT: ci@example.test
-          RELAY_ACCESS_MODE: shared_token
-          RELAY_ACCESS_TOKENS: ci-token-abcdefghijklmnopqrstuvwxyz123456
-        run: |
-          docker compose -f relay/docker-compose.yml config -q
-          docker compose -f relay/docker-compose.dokploy.yml config -q
-
-      - name: Check repository hygiene
-        run: |
-          git diff --check
-          git check-ignore -q relay-certs.tgz
-          grep -Fx 'RELAY_ACCESS_TOKENS=REPLACE_ME' relay/.env.example
+      - name: Run repository checks
+        run: sh scripts/check.sh
