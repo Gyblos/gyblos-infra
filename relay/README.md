@@ -4,6 +4,8 @@ Gyblos's self-hosted `iroh-relay` topology currently has one active relay,
 `na1`, on Hostinger through Dokploy. `na2` is planned as a second relay on a
 different provider and is not yet active. See the public [deployment status](../docs/status.md).
 They replace n0's public relays, which are for development only.
+For the full pre-deploy, verification, rollback and rotation procedure, see
+the public [release checklist](../docs/release-checklist.md).
 
 Files:
 
