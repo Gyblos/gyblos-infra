@@ -18,8 +18,8 @@ require_command() {
 
 require_command docker
 require_command git
+require_command grep
 require_command node
-require_command rg
 
 docker compose version >/dev/null 2>&1 || fail 'Docker Compose is required'
 
@@ -62,7 +62,7 @@ for sensitive_path in .env relay/.env relay-certs.tgz; do
   fi
 done
 
-if rg -n -i 'private Git repo' README.md relay docs SECURITY.md >/dev/null 2>&1; then
+if grep -Eqi 'private Git repo' README.md SECURITY.md relay/*.md docs/*.md; then
   fail 'documentation still refers to a private Git repo'
 fi
 
