@@ -2,6 +2,8 @@
 
 Use `docker-compose.dokploy.yml` when the server already runs Dokploy, whose
 Traefik owns ports 80 and 443. Use `docker-compose.yml` on a dedicated VPS.
+For release sign-off, rollback, certificate backups and token rotation, follow
+the public [release checklist](../docs/release-checklist.md).
 
 ## How it fits next to other apps
 
