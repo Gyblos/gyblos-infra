@@ -81,6 +81,17 @@ unset GYBLOS_RELAY_TOKEN
 Record the result, relay URL, repository commit and image digest in the
 private deployment record. Do not record the token.
 
+## Scheduled monitoring
+
+The [`Relay monitor`](../.github/workflows/relay-monitor.yml) workflow runs
+daily and can also be started manually. It checks `na1`'s public health, ping,
+HTTP probe and TLS certificate without credentials.
+
+For the authenticated E2E job, add the repository Actions secret
+`GYBLOS_RELAY_TOKEN` after the production token has been rotated. The workflow
+skips that job with a visible notice when the secret is absent. Never put the
+token in this workflow, a commit, a URL or a log.
+
 ## Rollback
 
 - [ ] Identify the last known-good image tag and digest in Git history.

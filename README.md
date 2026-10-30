@@ -21,6 +21,7 @@ The declared topology is documented in [`docs/status.md`](docs/status.md):
 - [`relay/node-config.md`](relay/node-config.md): proposed client integration contract.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): local setup and contribution workflow.
 - [`docs/release-checklist.md`](docs/release-checklist.md): deployment, rollback and rotation checklist.
+- [Relay monitor](.github/workflows/relay-monitor.yml): scheduled public health and optional authenticated E2E checks.
 - [`SECURITY.md`](SECURITY.md): private vulnerability reporting policy.
 - [`LICENSE`](LICENSE): Apache-2.0 license.
 
