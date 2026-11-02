@@ -29,6 +29,11 @@ sh -n relay/entrypoint.sh
 printf '%s\n' 'Checking Node.js syntax...'
 node --check relay/check/check.mjs
 node --check relay/check/control.mjs
+node --check relay/check/runner.mjs
+node --check relay/check/public-health.mjs
+
+printf '%s\n' 'Running offline E2E regression tests...'
+node --test relay/test/check.test.mjs relay/test/public-health.test.mjs
 
 printf '%s\n' 'Running entrypoint regression tests...'
 sh relay/test/entrypoint.sh

@@ -41,8 +41,12 @@ RELAY_URL=https://na1.relay.gyblos.com node check.mjs
 unset GYBLOS_RELAY_TOKEN
 ```
 
-Require authenticated echo success. A no-token run cannot certify access
-enforcement: timeouts can mean an unreachable relay. The optional
+The checker requires a token; without it, it exits 2 (incomplete). It runs
+authenticated echo before and after both negative observations, and exits 1
+on connection, echo or cleanup failure. Invalid configuration exits 64.
+Negatives report only that endpoints stayed offline; the binding does not expose
+an explicit authorization-denied event. These observations are behavioral
+evidence, not proof of the precise rejection reason. The optional
 `control.mjs` contacts n0 relays and does not prove target reachability.
 Record time, commit, image digest and results privately, never tokens.
 Consumer behavior requires its own integration test.
@@ -50,10 +54,22 @@ Consumer behavior requires its own integration test.
 ## Monitoring
 
 The [monitor workflow](../.github/workflows/relay-monitor.yml) checks public
-health and optionally authenticated E2E using the Actions secret
-`GYBLOS_RELAY_TOKEN`. An omitted echo is not complete validation. Workflows
+health and authenticated E2E using the Actions secret
+`GYBLOS_RELAY_TOKEN`. Manual dispatch requests E2E by default and fails if
+the secret is missing. Explicit public-only dispatch skips the E2E job and
+records incomplete coverage in the run summary. An omitted echo is not complete validation. Workflows
 are manual while runner quota is unavailable; there is no scheduled coverage.
 Run `sh scripts/check.sh` locally before PRs.
+
+Public checks can also run locally (Node.js 22, no npm install or token):
+
+```sh
+RELAY_URL=https://na1.relay.gyblos.com RELAY_PROBE_STATUS=404 node relay/check/public-health.mjs
+```
+
+Use probe status 404 for the current Dokploy variant, 204 for standalone.
+The public checker requires exact HTTP statuses and a trusted, hostname-verified
+TLS certificate valid for more than seven days.
 
 Track aggregate relay counters, host interface transfer and provider billing
 separately. Arrange alerts on certificate expiry, failed health, authenticated
