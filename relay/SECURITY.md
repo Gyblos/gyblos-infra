@@ -4,8 +4,8 @@ For private vulnerability reports, use the repository's
 [security policy](../SECURITY.md). This document describes the relay's
 operational threats and mitigations; it is not the disclosure channel.
 
-Scope: the two Gyblos `iroh-relay` hosts. Anonymous access to the relays is an
-abuse mitigation, not a confidentiality guarantee.
+Scope: the active Gyblos relay deployment (na1); na2 is planned.
+Access control is an abuse mitigation, not a confidentiality guarantee.
 
 ## Access mode decision (v1: `shared_token`)
 
@@ -30,13 +30,15 @@ cannot tell inference from file sharing. Mitigations: token gate;
 at 50/80% of quota; provider-level hard cap where available; denylist the
 endpoint ids that dominate `bytes_recv` (requires debug-level inspection
 during an incident, then back to `warn`). A token leak is expected over time:
-rotate it (README), do not treat it as secret material.
+rotate it using the [operations guide](../docs/operations.md#token-rotation).
+Treat deployed tokens as credentials; publicly distributed client tokens
+are extractable and do not establish identity.
 
 **DoS.** Connection floods and many concurrent clients exhaust file
 descriptors/memory. Mitigations: container limits (1 CPU, 512 MB, 256 pids,
 65536 fds); host firewall per-IP connection rate (`accept_conn_limit` is not
-enforced in 1.x); two independent providers so one being down or null-routed
-does not stop the market; clients fail over by latency. Volumetric attacks
+enforced in 1.x). Independent-provider redundancy is planned, not available
+today. There is no second-relay failover guarantee. Volumetric attacks
 beyond the VPS link need the provider's DDoS protection; no CDN can front a
 raw relay (TLS-ALPN + UDP).
 

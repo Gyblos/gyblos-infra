@@ -7,7 +7,7 @@
 - [ ] `sh scripts/check.sh`
 - [ ] Relevant manual checks are described below.
 - [ ] Any production E2E used an explicit `RELAY_URL` and an environment-only
-      token; it was not run from CI.
+      token; skipped checks are identified explicitly.
 
 ## Security and secrets
 
