@@ -3,6 +3,11 @@ name: Relay monitor
 on:
   # Manual while runner quota is unavailable.
   workflow_dispatch:
+    inputs:
+      authenticated_e2e:
+        description: Run authenticated E2E (requires deployment token)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -12,93 +17,61 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RELAY_HOSTNAME: na1.relay.gyblos.com
   RELAY_URL: https://na1.relay.gyblos.com
+  RELAY_PROBE_STATUS: '404'
 
 jobs:
   public-health:
-    name: Public relay health
+    name: Public health (does not certify E2E)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    timeout-minutes: 5
     steps:
-      - name: Check HTTPS and health endpoints
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Check public endpoints and certificate
+        run: node relay/check/public-health.mjs
+      - name: Record coverage
+        if: always()
+        env:
+          REQUESTED_E2E: ${{ inputs.authenticated_e2e }}
         run: |
-          set -eu
-
-          curl --noproxy '*' --connect-timeout 10 --max-time 20 \
-            -fsS -o /dev/null "${RELAY_URL}/healthz"
-
-          ping_status=$(curl --noproxy '*' --connect-timeout 10 --max-time 20 \
-            -sS -o /dev/null -w '%{http_code}' "${RELAY_URL}/ping")
-          test "$ping_status" = 200
-
-          probe_status=$(curl --noproxy '*' --connect-timeout 10 --max-time 20 \
-            -sS -o /dev/null -w '%{http_code}' \
-            "http://${RELAY_HOSTNAME}/generate_204" || printf '000')
-          case "$probe_status" in
-            204)
-              echo 'HTTP captive-portal probe returned 204.'
-              ;;
-            404)
-              echo '::notice::HTTP captive-portal probe returned 404; expected for the current Dokploy deployment.'
-              ;;
-            *)
-              echo "::error::Unexpected HTTP captive-portal probe status: $probe_status"
-              exit 1
-              ;;
-          esac
-
-      - name: Check certificate validity
-        run: |
-          set -eu
-          openssl s_client \
-            -connect "${RELAY_HOSTNAME}:443" \
-            -servername "$RELAY_HOSTNAME" \
-            </dev/null 2>/dev/null \
-            | openssl x509 -noout -checkend 604800 -issuer -dates
+          echo "Public checks result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$REQUESTED_E2E" != true ]; then
+            echo 'Public-only run: authenticated E2E NOT REQUESTED; full validation incomplete.' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   authenticated-e2e:
     name: Authenticated relay E2E
+    needs: public-health
+    if: inputs.authenticated_e2e
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    timeout-minutes: 5
     steps:
-      - name: Detect deployment token
-        id: token
+      - name: Require deployment token
         env:
           GYBLOS_RELAY_TOKEN: ${{ secrets.GYBLOS_RELAY_TOKEN }}
         run: |
-          if [ -n "${GYBLOS_RELAY_TOKEN:-}" ]; then
-            echo 'configured=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'configured=false' >> "$GITHUB_OUTPUT"
+          if [ -z "${GYBLOS_RELAY_TOKEN:-}" ]; then
+            echo '::error::Authenticated E2E requested but GYBLOS_RELAY_TOKEN is missing.'
+            exit 1
           fi
-
-      - name: Report missing deployment token
-        if: steps.token.outputs.configured != 'true'
-        run: echo '::notice::GYBLOS_RELAY_TOKEN is not configured; authenticated E2E was skipped.'
-
-      - name: Check out repository
-        if: steps.token.outputs.configured == 'true'
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        if: steps.token.outputs.configured == 'true'
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: relay/check/package-lock.json
-
       - name: Install relay check dependencies
-        if: steps.token.outputs.configured == 'true'
         working-directory: relay/check
         run: npm ci --ignore-scripts --no-audit --no-fund
-
       - name: Run authenticated relay E2E
-        if: steps.token.outputs.configured == 'true'
         working-directory: relay/check
         env:
           GYBLOS_RELAY_TOKEN: ${{ secrets.GYBLOS_RELAY_TOKEN }}
-        run: RELAY_URL="$RELAY_URL" node check.mjs
+        run: node check.mjs
+      - name: Record authenticated result
+        if: always()
+        run: |
+          echo "Authenticated E2E result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"

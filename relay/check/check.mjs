@@ -1,84 +1,106 @@
-// Checks a Gyblos Iroh relay end to end with real Iroh endpoints.
-// - Without a token (and with a wrong one) the relay must refuse: no home relay.
-// - With the token (env GYBLOS_RELAY_TOKEN, never printed) two relay-only
-//   endpoints must meet through the relay and exchange an echo.
 // Usage: RELAY_URL=https://relay.example node check.mjs
-//        RELAY_URL=https://relay.example GYBLOS_RELAY_TOKEN=... node check.mjs
-import { Endpoint, EndpointAddr, RelayMap, RelayMode, SecretKey } from '@number0/iroh'
+// Load GYBLOS_RELAY_TOKEN through the environment, never a command argument.
+import { deadline, relayUrl, verifyAccess } from './runner.mjs'
 
-const RELAY_URL = process.env.RELAY_URL?.trim()
-if (!RELAY_URL) {
-  console.error('Usage: RELAY_URL=https://relay.example node check.mjs')
+let url
+try { url = relayUrl(process.env.RELAY_URL) } catch (error) {
+  console.error(error.message + '\nUsage: RELAY_URL=https://relay.example node check.mjs')
   process.exit(64)
 }
-const QUIC_PORT = 7842
-const ALPN = [...Buffer.from('gyblos/relay-check/0')]
-const ONLINE_MS = 15000
-const TOKEN = process.env.GYBLOS_RELAY_TOKEN
-
-const withTimeout = (promise, ms) =>
-  Promise.race([promise.then(() => true), new Promise((r) => setTimeout(() => r(false), ms))])
-
-async function relayOnlyEndpoint (authToken) {
-  const map = RelayMap.empty()
-  map.insert({ url: RELAY_URL, quicPort: QUIC_PORT, ...(authToken ? { authToken } : {}) })
-  const builder = Endpoint.builder()
-  builder.applyMinimal()
-  builder.secretKey(SecretKey.generate().toBytes())
-  builder.alpns([ALPN])
-  builder.bindAddr('127.0.0.1:0') // loopback only: no direct path, traffic must use the relay
-  builder.relayMode(RelayMode.custom(map))
-  return builder.bind()
+const token = process.env.GYBLOS_RELAY_TOKEN
+if (!token) {
+  console.error('INCOMPLETE: set GYBLOS_RELAY_TOKEN through the environment for authenticated validation')
+  process.exit(2)
 }
-
-async function refusal (label, token) {
-  const ep = await relayOnlyEndpoint(token)
-  const online = await withTimeout(ep.online(), 8000)
-  await ep.close()
-  console.log(`${online ? 'FAIL' : 'PASS'}  ${label}: ${online ? 'relay accepted the endpoint' : 'relay refused (no home relay)'}`)
-  return !online
+if (!/^[A-Za-z0-9_-]{32,}$/.test(token)) {
+  console.error('Invalid GYBLOS_RELAY_TOKEN format')
+  process.exit(64)
 }
+// Also bound native binding, connection and shutdown hangs for local callers.
+const watchdog = setTimeout(() => {
+  console.error('FAIL  relay check exceeded its overall deadline')
+  process.exit(1)
+}, 120000)
 
-async function echoThroughRelay () {
-  const server = await relayOnlyEndpoint(TOKEN)
-  const client = await relayOnlyEndpoint(TOKEN)
-  try {
-    const t0 = performance.now()
-    const ok = (await withTimeout(server.online(), ONLINE_MS)) && (await withTimeout(client.online(), ONLINE_MS))
-    if (!ok) { console.log('FAIL  with token: endpoints did not get the relay as home relay'); return false }
-    const onlineMs = Math.round(performance.now() - t0)
-    const serving = (async () => {
-      const incoming = await server.acceptNext()
-      const conn = await (await incoming.accept()).connect()
-      const bi = await conn.acceptBi()
-      const msg = await bi.recv.readToEnd(1024)
-      await bi.send.writeAll(msg)
-      await bi.send.finish()
-      await conn.closed().catch(() => {})
-    })()
-    const t1 = performance.now()
-    const conn = await client.connect(new EndpointAddr(server.id(), RELAY_URL, []), ALPN)
-    const bi = await conn.openBi()
-    const payload = [...Buffer.from('gyblos relay echo')]
-    await bi.send.writeAll(payload)
-    await bi.send.finish()
-    const back = await bi.recv.readToEnd(1024)
-    const echoMs = Math.round(performance.now() - t1)
-    const paths = conn.paths().map((p) => JSON.stringify(p)).join(' ')
-    const same = Buffer.from(back).toString() === Buffer.from(payload).toString()
-    conn.close(0n, [])
-    await Promise.race([serving, new Promise((r) => setTimeout(r, 2000))])
-    console.log(`${same ? 'PASS' : 'FAIL'}  with token: echo through relay (online ${onlineMs} ms, connect+echo ${echoMs} ms)`)
-    console.log(`      paths: ${paths}`)
-    return same
-  } finally {
-    await client.close()
-    await server.close()
+try {
+  const { Endpoint, EndpointAddr, RelayMap, RelayMode, SecretKey } = await import('@number0/iroh')
+  const alpn = [...Buffer.from('gyblos/relay-check/0')]
+  const ms = 15000
+  const endpoints = new Set()
+  async function endpoint (authToken) {
+    const map = RelayMap.empty()
+    map.insert({ url, quicPort: 7842, ...(authToken ? { authToken } : {}) })
+    const builder = Endpoint.builder()
+    builder.applyMinimal()
+    builder.secretKey(SecretKey.generate().toBytes())
+    builder.alpns([alpn])
+    builder.bindAddr('127.0.0.1:0') // no direct peer path
+    builder.relayMode(RelayMode.custom(map))
+    const ep = await deadline(builder.bind(), ms, 'Endpoint bind')
+    endpoints.add(ep)
+    return ep
   }
-}
-
-let ok = await refusal('no token', undefined)
-ok = (await refusal('wrong token', 'x'.repeat(48))) && ok
-if (TOKEN) ok = (await echoThroughRelay()) && ok
-else console.log('SKIP  with token: set GYBLOS_RELAY_TOKEN to run the echo test')
-process.exit(ok ? 0 : 1)
+  async function close (ep) {
+    await deadline(ep.close(), 2000, 'Endpoint close')
+    endpoints.delete(ep)
+  }
+  async function offline (authToken) {
+    const ep = await endpoint(authToken)
+    try {
+      // A rejected promise is an error, not a successful negative observation.
+      return await deadline(ep.online().then(() => false), 8000, 'Negative observation')
+    } catch (error) {
+      if (error.message === 'Negative observation timed out') return true
+      throw error
+    } finally { await close(ep) }
+  }
+  async function echo () {
+    const server = await endpoint(token)
+    const client = await endpoint(token)
+    try {
+      await deadline(Promise.all([server.online(), client.online()]), ms, 'Authenticated online')
+      const serving = (async () => {
+        const incoming = await server.acceptNext()
+        const conn = await (await incoming.accept()).connect()
+        try {
+          const bi = await conn.acceptBi()
+          const data = await bi.recv.readToEnd(1024)
+          await bi.send.writeAll(data)
+          await bi.send.finish()
+          await conn.closed()
+        } finally { conn.close(0n, []) }
+      })()
+      // Observe server errors immediately; Promise.all below still propagates them.
+      serving.catch(() => {})
+      const exchange = (async () => {
+        const conn = await client.connect(new EndpointAddr(server.id(), url, []), alpn)
+        try {
+          const bi = await conn.openBi()
+          const payload = Buffer.from('gyblos relay echo')
+          await bi.send.writeAll([...payload])
+          await bi.send.finish()
+          const back = await bi.recv.readToEnd(1024)
+          if (!Buffer.from(back).equals(payload)) throw new Error('Echo payload mismatch')
+        } finally { conn.close(0n, []) }
+      })()
+      await deadline(Promise.all([serving, exchange]), ms, 'Authenticated echo')
+    } finally {
+      await Promise.all([close(client), close(server)])
+    }
+  }
+  try {
+    await verifyAccess({
+      echo, offline, report: (message) => console.log(message),
+      wrongToken: (token[0] === 'x' ? 'y' : 'x').repeat(48)
+    })
+  } finally {
+    await Promise.allSettled([...endpoints].map(close))
+  }
+} catch {
+  // Native errors can include connection details. Never print credentials,
+  // raw URLs, response bodies or upstream error messages.
+  console.error('FAIL  relay validation failed (reachability, authentication, echo or cleanup)')
+  process.exitCode = 1
+} finally { clearTimeout(watchdog) }
+// The native runtime may retain background handles after endpoints close.
+process.exit(process.exitCode || 0)
