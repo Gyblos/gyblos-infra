@@ -15,7 +15,7 @@ the public [release checklist](../docs/release-checklist.md).
   Traefik is not involved.
 - **Metrics:** `127.0.0.1:9090` on the host only.
 - **Limits:** 1 CPU, 512 MB RAM, 256 processes, plus per-client rate limits in
-  `config.toml`, so relay load cannot starve the other services.
+  `config.toml`. These do not cap total host bandwidth or isolate all host load.
 
 ## Steps
 
@@ -52,4 +52,6 @@ the public [release checklist](../docs/release-checklist.md).
   not redundant.
 - Nodes must be configured to use this relay, and the buyer's relay check must
   accept it. Today `apps/cli/src/p2p/buyer.ts` only accepts n0's default relays
-  (see `node-config.md`).
+  according to the historical review in `node-config.md`; recheck the current
+  consumer commit before integration. Follow [operations](../docs/operations.md)
+  for authenticated checks and troubleshooting.

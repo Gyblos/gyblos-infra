@@ -1,46 +1,64 @@
-# gyblos-infra
+# Gyblos Infra
 
-Open-source infrastructure configuration for Gyblos.
+Deployment configuration and operational tooling for Gyblos's self-hosted
+[Iroh](https://github.com/n0-computer/iroh) relay infrastructure.
 
-## Scope
+Iroh peers try to communicate directly. A relay helps them establish contact
+and carries encrypted traffic when a direct connection is unavailable. This
+repository publishes reviewable, reusable configuration and operating procedures.
+It does not implement Gyblos clients or payments.
 
-This repository contains the container configuration, runtime configuration
-template, deployment instructions and operational checks for Gyblos's
-self-hosted Iroh relay service. It does not contain the Gyblos client
-implementation, customer data, host credentials or deployment state.
+```mermaid
+flowchart LR
+    A[Gyblos peer] <-->|Direct connection when possible| B[Gyblos peer]
+    A <-->|Rendezvous and encrypted fallback| R[Iroh relay]
+    R <-->|Rendezvous and encrypted fallback| B
+```
 
-## Current topology
+## Current state
 
-The declared topology is documented in [`docs/status.md`](docs/status.md):
-`na1` is the active relay and `na2` is planned redundancy.
+- `na1` is the declared active relay, on Hostinger with Dokploy.
+- `na2` is planned; there is no second-relay redundancy today.
+- Client integration remains a proposal.
+- Open-source configuration does not grant access to the deployed service.
+  Shared-token access requires coordination with its operator.
 
-## Documentation
+[Deployment status](docs/status.md) describes the topology, not live availability.
 
-- [`relay/README.md`](relay/README.md): deployment, verification, monitoring and upgrades.
-- [`relay/DOKPLOY.md`](relay/DOKPLOY.md): deployment on an existing Dokploy server.
-- [`relay/node-config.md`](relay/node-config.md): proposed client integration contract.
-- [`CONTRIBUTING.md`](CONTRIBUTING.md): local setup and contribution workflow.
-- [`docs/release-checklist.md`](docs/release-checklist.md): deployment, rollback and rotation checklist.
-- [Relay monitor](.github/workflows/relay-monitor.yml): scheduled public health and optional authenticated E2E checks.
-- [`SECURITY.md`](SECURITY.md): private vulnerability reporting policy.
-- [`LICENSE`](LICENSE): Apache-2.0 license.
+## Start here
 
-## Validate changes
+| Your goal | Guide |
+| --- | --- |
+| Understand traffic and dependencies | [Architecture](docs/architecture.md) |
+| Contribute or validate changes | [Contributing](CONTRIBUTING.md) |
+| Deploy alongside Dokploy apps | [Dokploy](relay/DOKPLOY.md) — current na1 variant |
+| Deploy on a dedicated VPS | [Standalone](relay/STANDALONE.md) |
+| Find variables and configuration files | [Relay reference](relay/README.md) |
+| Verify, monitor, back up or rotate tokens | [Operations](docs/operations.md) |
+| Prepare deployment or rollback | [Release checklist](docs/release-checklist.md) |
+| Work on consumer applications | [Client integration proposal](relay/node-config.md) |
 
-Install the relay check dependencies when needed, then run the complete local
-validation suite from the repository root:
+## Validate locally
+
+Requirements: Git, Docker Compose, Node.js 22 and a POSIX shell.
 
 ```sh
-cd relay/check && npm ci --ignore-scripts --no-audit --no-fund && cd ../..
 sh scripts/check.sh
 ```
 
-The checks use dummy values for Compose validation. They do not contact a
-deployed relay or use production credentials. Follow the
-[`release checklist`](docs/release-checklist.md) for manual infrastructure and
-E2E validation.
+This checks syntax, entrypoint regressions, both Compose variants with dummy
+values and repository hygiene. It does not start containers or prove a deployed
+relay works. Install Node dependencies only for the
+[operational E2E](docs/operations.md#end-to-end-validation).
 
-Secrets never go in this repo: tokens and contact details live in the
-deployment's environment (Dokploy variables or a local `.env`, which is
-gitignored). Certificate backups contain private keys and must remain outside
-Git.
+Workflows are manual while runner quota is unavailable. Local results are the
+required validation evidence. See [monitor coverage](docs/operations.md#monitoring).
+
+## Security and license
+
+Keep credentials in the deployment environment and certificate backups encrypted
+outside Git. Host state and customer data are outside this repository's scope.
+
+Use the [private security policy](SECURITY.md) to report vulnerabilities.
+The [threat model](relay/SECURITY.md) explains metadata exposure and access-control
+assumptions. Licensed under [Apache-2.0](LICENSE).

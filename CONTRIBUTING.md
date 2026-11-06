@@ -16,7 +16,7 @@ deployed relay must also be validated with the release checklist in
 
 - Git.
 - Docker Engine with the Docker Compose plugin.
-- Node.js compatible with the `relay/check` package (Node.js 20.3 or newer).
+- Node.js 22 (the repository validation version).
 - A shell with standard POSIX utilities.
 
 ## Local setup
@@ -61,10 +61,10 @@ not a live availability monitor.
 
 ## Pull requests
 
-The repository's workflow runs the same validation command when a GitHub
-runner is available. The workflow is intentionally non-deploying and does not
-use production secrets. A queued or unavailable runner does not replace the
-local validation requirement.
+CI is manual while runner quota is unavailable. Include local validation
+results in PRs instead of dispatching Actions. CI does not deploy or use
+production secrets. See [operations](docs/operations.md#monitoring) for the
+separate production monitor.
 
 For infrastructure changes, include:
 

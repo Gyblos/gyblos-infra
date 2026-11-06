@@ -1,10 +1,7 @@
 name: CI
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  # Manual while runner quota is unavailable; validate locally.
   workflow_dispatch:
 
 permissions:

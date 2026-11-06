@@ -4,12 +4,16 @@
 > integration. This repository does not currently modify or guarantee the
 > implementation in `gyblos-payments` or its client applications.
 
-Source of truth checked: `@number0/iroh` **1.1.0** `index.d.ts` and
+Historical review: `@number0/iroh` **1.1.0** `index.d.ts` and
 `src/relay.rs` (napi binding over Rust `iroh`/`iroh-relay` 1.x), and
 `gyblos-payments/packages/transport/src/endpoint.ts`,
 `apps/cli/src/p2p/{seller,buyer}.ts`, `packages/application/src/offers.ts`.
 No change was made to `gyblos-payments`; the snippets below are proposals for
 whoever owns the transport package.
+
+The checker now pins binding 1.2.0. The original consumer commit was not
+recorded; current consumers have not been reverified. Recheck these paths and
+record the exact consumer commit and binding version before implementation.
 
 ## Observed compatibility: custom relays are supported
 
@@ -55,8 +59,8 @@ Details that matter:
 
 | Variable | Default (prod) | Meaning |
 | --- | --- | --- |
-| `GYBLOS_RELAYS` | `https://na2.relay.gyblos.com/,https://na1.relay.gyblos.com/` (compiled-in constant in `@gyblos/config`) | Our relay URLs |
-| `GYBLOS_RELAY_TOKEN` | compiled-in current token | Bearer token for our relays |
+| `GYBLOS_RELAYS` | `https://na1.relay.gyblos.com/` (proposed constant) | Add na2 only after verified activation |
+| `GYBLOS_RELAY_TOKEN` | Operator-provided; distribution mechanism to be decided | Bearer token for our relays |
 | `GYBLOS_RELAY_FALLBACK` | `none` | `none` \| `n0` (append n0 relays if ours fail; dev/emergency) |
 | `GYBLOS_RELAY_MODE` | `gyblos` | `gyblos` \| `n0` (current behavior, dev) \| `disabled` (LAN tests) |
 
@@ -115,10 +119,9 @@ async function ensureOnline(endpoint: Endpoint, ms: number) {
 }
 ```
 
-The two-relay, two-provider setup is itself the primary fallback: if `na2` is
-down, iroh's net report marks it unreachable and picks `na1` as home relay
-automatically (no code). n0 fallback is opt-in because n0's public relays are
-development-only and rate-limited.
+Two-relay failover is a future design requiring deployment and testing.
+Only na1 is active today. Proposed n0 fallback is opt-in and requires review
+of upstream service policy before use.
 
 ### Required consumer changes before production activation
 
@@ -136,7 +139,8 @@ development-only and rate-limited.
 4. Both sides must use the same relay set. With `shared_token`, a buyer whose
    map lacks our relays (or has the wrong token) cannot reach a seller homed on
    them. Mixed-version rollout: ship the new client with our relays first,
-   relays in `open` mode, then switch relays to `shared_token`.
+   test with coordinated tokens in staging before production activation.
+   Do not expose production in open mode to migrate clients.
 5. Relay URLs: compare normalized `new URL(u).href` (trailing slash), as the
    buyer already does.
 
@@ -145,7 +149,7 @@ development-only and rate-limited.
 ```ts
 const ep = await bindEndpoint(secret);
 await ep.online();
-console.log(ep.addr().relayUrl());   // https://na2.relay.gyblos.com/ or na1
+console.log(ep.addr().relayUrl());   // expected: https://na1.relay.gyblos.com/
 ep.watchHomeRelay((urls) => console.log('home relay', urls));
 ```
 
