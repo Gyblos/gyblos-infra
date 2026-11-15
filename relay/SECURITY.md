@@ -7,25 +7,31 @@ operational threats and mitigations; it is not the disclosure channel.
 Scope: the active Gyblos relay deployment (na1); na2 is planned.
 Access control is an abuse mitigation, not a confidentiality guarantee.
 
-## Access mode decision (v1: `shared_token`)
+## Access mode decision (beta, 2026-11-15: `open`)
 
 | Mode | Pros | Cons |
 | --- | --- | --- |
-| `open` (`access = "everyone"`) | Zero client config; any iroh app can interoperate | Anyone on the internet can use our egress as a free relay (iroh users can point any app at a relay URL) |
-| `shared_token` (**v1**) | Only clients carrying the Gyblos token can relay; trivial to run; two tokens allow rotation | Token ships in the open client, so it is extractable: this is a speed bump against drive-by use, not authentication |
+| `open` (`access = "everyone"`) (**beta**) | Zero client config; any iroh app can interoperate | Anyone on the internet can use our egress as a free relay (iroh users can point any app at a relay URL) |
+| `shared_token` (v1) | Only clients carrying the Gyblos token can relay; trivial to run; two tokens allow rotation | Token ships in the open client, so it is extractable: this is a speed bump against drive-by use, not authentication |
 | `http` callout (`access.http.url`) | Per-endpoint-id decisions (e.g. registered sellers, deny lists, quotas) | Needs a highly available auth service on the relay hot path; buyers are anonymous, so it cannot be a strict allowlist without also gating buyers; callout only receives the endpoint id |
 | `allowlist`/`denylist` | Static, local | Allowlist does not fit an open market; denylist only after abuse is seen |
 
-Recommendation: **v1 `shared_token` + per-client rate limits**, with
-`denylist` added reactively for abusive endpoint ids. Revisit an `http`
-callout once there is a seller registry and per-endpoint quotas are needed.
+Decision for the beta (founder, 2026-11-15): **`open` + per-client rate
+limits**. The shared token shipped in open clients, so it never authenticated
+anyone, yet every seller and buyer had to receive and enter it by hand. Open
+access removes that step; the per-client limits, egress alerts, provider caps
+and a reactive `denylist` bound abuse. Gyblos clients no longer require a token
+and still send one when set, so `shared_token` can be restored without breaking
+them. Next: an `http` callout that admits by endpoint id (registered sellers,
+limits for anonymous buyers), tracked in gyblos-node issue #236. `shared_token`
+remains the entrypoint default for new deployments.
 Note access control only gates *relaying*; QAD (UDP 7842) and probe routes
 stay open by design and carry negligible traffic.
 
 ## Threats
 
 **Abuse as a free proxy / bandwidth sink.** Relayed traffic is opaque, so we
-cannot tell inference from file sharing. Mitigations: token gate;
+cannot tell inference from file sharing. Mitigations: (shared_token mode) token gate;
 `[limits.client.rx]` 500 kB/s with 2 MB burst per connection; egress alerts
 at 50/80% of quota; provider-level hard cap where available; denylist the
 endpoint ids that dominate `bytes_recv` (requires debug-level inspection

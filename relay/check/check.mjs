@@ -1,18 +1,25 @@
 // Usage: RELAY_URL=https://relay.example node check.mjs
-// Load GYBLOS_RELAY_TOKEN through the environment, never a command argument.
-import { deadline, relayUrl, verifyAccess } from './runner.mjs'
+// shared_token relays (default): load GYBLOS_RELAY_TOKEN through the environment, never a command argument.
+// Open relays: RELAY_ACCESS_MODE=open checks that endpoints without a token relay.
+import { deadline, relayUrl, verifyAccess, verifyOpen } from './runner.mjs'
 
 let url
 try { url = relayUrl(process.env.RELAY_URL) } catch (error) {
   console.error(error.message + '\nUsage: RELAY_URL=https://relay.example node check.mjs')
   process.exit(64)
 }
-const token = process.env.GYBLOS_RELAY_TOKEN
-if (!token) {
+const mode = process.env.RELAY_ACCESS_MODE || 'shared_token'
+if (mode !== 'shared_token' && mode !== 'open') {
+  console.error("RELAY_ACCESS_MODE must be 'shared_token' or 'open'")
+  process.exit(64)
+}
+const open = mode === 'open'
+const token = open ? undefined : process.env.GYBLOS_RELAY_TOKEN
+if (!open && !token) {
   console.error('INCOMPLETE: set GYBLOS_RELAY_TOKEN through the environment for authenticated validation')
   process.exit(2)
 }
-if (!/^[A-Za-z0-9_-]{32,}$/.test(token)) {
+if (!open && !/^[A-Za-z0-9_-]{32,}$/.test(token)) {
   console.error('Invalid GYBLOS_RELAY_TOKEN format')
   process.exit(64)
 }
@@ -54,6 +61,13 @@ try {
       throw error
     } finally { await close(ep) }
   }
+  async function online () {
+    const ep = await endpoint(undefined)
+    try {
+      await deadline(ep.online(), ms, 'Tokenless online')
+      return true
+    } finally { await close(ep) }
+  }
   async function echo () {
     const server = await endpoint(token)
     const client = await endpoint(token)
@@ -89,10 +103,14 @@ try {
     }
   }
   try {
-    await verifyAccess({
-      echo, offline, report: (message) => console.log(message),
-      wrongToken: (token[0] === 'x' ? 'y' : 'x').repeat(48)
-    })
+    const report = (message) => console.log(message)
+    if (open) await verifyOpen({ echo, online, report })
+    else {
+      await verifyAccess({
+        echo, offline, report,
+        wrongToken: (token[0] === 'x' ? 'y' : 'x').repeat(48)
+      })
+    }
   } finally {
     await Promise.allSettled([...endpoints].map(close))
   }
