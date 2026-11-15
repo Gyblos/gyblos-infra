@@ -8,6 +8,11 @@ on:
         description: Run authenticated E2E (requires deployment token)
         type: boolean
         default: true
+      access_mode:
+        description: Relay access mode to verify (open needs no token)
+        type: choice
+        options: [shared_token, open]
+        default: shared_token
 
 permissions:
   contents: read
@@ -50,6 +55,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Require deployment token
+        if: inputs.access_mode != 'open'
         env:
           GYBLOS_RELAY_TOKEN: ${{ secrets.GYBLOS_RELAY_TOKEN }}
         run: |
@@ -69,7 +75,8 @@ jobs:
       - name: Run authenticated relay E2E
         working-directory: relay/check
         env:
-          GYBLOS_RELAY_TOKEN: ${{ secrets.GYBLOS_RELAY_TOKEN }}
+          RELAY_ACCESS_MODE: ${{ inputs.access_mode }}
+          GYBLOS_RELAY_TOKEN: ${{ inputs.access_mode != 'open' && secrets.GYBLOS_RELAY_TOKEN || '' }}
         run: node check.mjs
       - name: Record authenticated result
         if: always()

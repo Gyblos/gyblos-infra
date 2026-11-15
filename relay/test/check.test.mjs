@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { deadline, relayUrl, verifyAccess } from '../check/runner.mjs'
+import { deadline, relayUrl, verifyAccess, verifyOpen } from '../check/runner.mjs'
 
 test('requires an explicit safe HTTPS origin without exposing invalid input', () => {
   assert.equal(relayUrl(' https://relay.example '), 'https://relay.example/')
@@ -70,4 +70,36 @@ test('timeouts are bounded and preserve operation errors', async () => {
   await assert.rejects(deadline(new Promise(() => {}), 10, 'Echo'), /timed out/)
   await assert.rejects(deadline(Promise.reject(new Error('broken')), 50, 'Echo'), /broken/)
   assert.equal(await deadline(Promise.resolve('ok'), 50, 'Echo'), 'ok')
+})
+
+test('an unknown access mode fails before loading native dependencies', () => {
+  const result = spawnSync(process.execPath, ['relay/check/check.mjs'], {
+    env: { ...process.env, RELAY_URL: 'https://relay.example', RELAY_ACCESS_MODE: 'everyone' },
+    encoding: 'utf8'
+  })
+  assert.equal(result.status, 64)
+  assert.match(result.stderr, /RELAY_ACCESS_MODE/)
+})
+
+test('open mode passes only when tokenless echo works around a tokenless endpoint', async () => {
+  const events = []
+  const output = []
+  await verifyOpen({
+    echo: async () => { events.push('echo') },
+    online: async () => { events.push('online'); return true },
+    report: x => output.push(x)
+  })
+  assert.deepEqual(events, ['echo', 'online', 'echo'])
+  assert.equal(output.length, 2)
+})
+
+test('open mode fails when a tokenless endpoint is refused or the relay is down', async () => {
+  await assert.rejects(verifyOpen({
+    echo: async () => {}, online: async () => false,
+    report: () => assert.fail('must not report PASS')
+  }), /refused a tokenless endpoint/)
+  await assert.rejects(verifyOpen({
+    echo: async () => { throw new Error('unreachable') },
+    online: async () => true, report: () => assert.fail('must not report PASS')
+  }), /unreachable/)
 })

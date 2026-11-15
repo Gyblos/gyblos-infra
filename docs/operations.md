@@ -41,7 +41,10 @@ RELAY_URL=https://na1.relay.gyblos.com node check.mjs
 unset GYBLOS_RELAY_TOKEN
 ```
 
-The checker requires a token; without it, it exits 2 (incomplete). It runs
+For a relay in open mode (the beta setting), run it without a token:
+`RELAY_ACCESS_MODE=open RELAY_URL=https://na1.relay.gyblos.com node check.mjs`
+checks that endpoints without a token come online and echo. In
+`shared_token` mode (the default) the checker requires a token; without it, it exits 2 (incomplete). It runs
 authenticated echo before and after both negative observations, and exits 1
 on connection, echo or cleanup failure. Invalid configuration exits 64.
 Negatives report only that endpoints stayed offline; the binding does not expose
@@ -56,7 +59,7 @@ Consumer behavior requires its own integration test.
 The [monitor workflow](../.github/workflows/relay-monitor.yml) checks public
 health and authenticated E2E using the Actions secret
 `GYBLOS_RELAY_TOKEN`. Manual dispatch requests E2E by default and fails if
-the secret is missing. Explicit public-only dispatch skips the E2E job and
+the secret is missing; choose `access_mode: open` for an open relay, which needs no secret. Explicit public-only dispatch skips the E2E job and
 records incomplete coverage in the run summary. An omitted echo is not complete validation. Workflows
 are manual while runner quota is unavailable; there is no scheduled coverage.
 Run `sh scripts/check.sh` locally before PRs.
@@ -88,6 +91,21 @@ redeployment. Certificate re-issuance is subject to CA rate limits.
 Keep environment values in the operator's secret store. Recovery requires
 configuration, pinned image, environment, DNS/firewall setup and certificate
 volume or successful re-issuance.
+
+## Switching na1 to open access (beta)
+
+Founder approval is required; this changes production access.
+
+1. In the relay's secret store (Dokploy environment for na1), set
+   `RELAY_ACCESS_MODE=open`. Keep `RELAY_ACCESS_TOKENS` stored for rollback.
+2. Redeploy the same reviewed image digest and configuration.
+3. Validate with the monitor workflow (`access_mode: open`) or locally with
+   `RELAY_ACCESS_MODE=open RELAY_URL=https://na1.relay.gyblos.com node check.mjs`.
+4. Watch egress and per-client counters more closely during the first days.
+
+Rollback: set `RELAY_ACCESS_MODE=shared_token`, redeploy and validate with the
+token. Gyblos clients that still send a token keep working in either mode;
+clients without one need open access.
 
 ## Token rotation
 

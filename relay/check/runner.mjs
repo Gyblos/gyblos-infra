@@ -34,3 +34,13 @@ export async function verifyAccess ({ echo, offline, report, wrongToken = 'x'.re
   report('PASS  no token: endpoint stayed offline')
   report('PASS  wrong token: endpoint stayed offline')
 }
+
+// Open access (RELAY_ACCESS_MODE=open): an endpoint without any token must relay. Echo runs without a
+// token before and after a second tokenless endpoint comes online, so an outage never reads as success.
+export async function verifyOpen ({ echo, online, report }) {
+  await echo()
+  if (!await online()) throw new Error('Relay refused a tokenless endpoint in open mode')
+  await echo()
+  report('PASS  open access: tokenless echo before and after the access check')
+  report('PASS  no token: endpoint came online')
+}
