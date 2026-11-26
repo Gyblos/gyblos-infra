@@ -1,0 +1,45 @@
+name: Publish Altare relay image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-altare-relay
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build and verify image
+        id: build
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gyblos-relay:altare-${GITHUB_SHA}"
+          docker build --platform linux/amd64 --tag "$image" relay/altare
+          container=$(docker run --rm -d -p 127.0.0.1::8080 "$image")
+          trap 'docker stop "$container" >/dev/null' EXIT
+          address=$(docker port "$container" 8080/tcp)
+          curl --fail --silent --show-error --retry 5 --retry-connrefused "http://$address/healthz"
+          curl --fail --silent --show-error "http://$address/ping" >/dev/null
+          printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to GitHub Container Registry
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE"
+          digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
+          printf 'Altare Image field: `%s`\n' "$digest" >> "$GITHUB_STEP_SUMMARY"

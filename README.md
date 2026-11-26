@@ -33,6 +33,7 @@ flowchart LR
 | Contribute or validate changes | [Contributing](CONTRIBUTING.md) |
 | Deploy alongside Dokploy apps | [Dokploy](relay/DOKPLOY.md) — current na1 variant |
 | Deploy on a dedicated VPS | [Standalone](relay/STANDALONE.md) |
+| Deploy an HTTPS/WebSocket relay on Altare | [Altare](relay/altare/README.md) |
 | Find variables and configuration files | [Relay reference](relay/README.md) |
 | Verify, monitor, back up or rotate tokens | [Operations](docs/operations.md) |
 | Prepare deployment or rollback | [Release checklist](docs/release-checklist.md) |
